@@ -1,143 +1,233 @@
+#include <math.h>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <random>
+#include <stack>
 #include <vector>
-#include <math.h>
-#include <list>
 #include <sstream>
 #include <fstream>
-#include <stack>
-#include <algorithm>
 #include <stdlib.h>
 
 using namespace std;
 
-class LinkedBinaryTree;
 
-//Builds and returns a binary expression tree from a string expression in postfix notation.
-LinkedBinaryTree createExpressionTree(string postfix); 
+// return true is op is a suported operation, otherwise return false
+bool isOp(string op) {
+  if (op == "+")
+    return true;
+  else if (op == "-")
+    return true;
+  else if (op == "*")
+    return true;
+  else if (op == "/")
+    return true;
+  else if (op == ">")
+    return true;
+  else if (op == "abs")
+    return true;
+  else
+    return false;
+}
 
+int arity(string op) {
+  if (op == "abs")
+    return 1;
+  else
+    return 2;
+}
 
 typedef string Elem;
-class LinkedBinaryTree { //create a class called LinkedBinaryTree
-  protected: 
-    struct Node { // a node of the tree
-      Elem elt; // element value
-      Node* par; // parent
-      Node* left; // left child
-      Node* right; // right child
-      Node() : elt(), par(NULL), left(NULL), right(NULL) { } //constructor
-    };
-  public:
-    class Position { // position in tree
-      private:
-        Node* v; // pointer to node
-      public:
-       Position(Node*_v = NULL) : v(_v) { } // constructor
-       Elem& operator*() //get element
-          { return v->elt; }
-       Position left() const // get left child
-         { return Position(v->left); }
-       Position right() const // get right child
-         { return Position(v->right); }
-       Position parent() const // get parent child
-          { return Position(v->par); }
-       bool isRoot() const // root of tree?
-         { return v->par == NULL; }
-       bool isExternal() const // an external node?
-          { return v->left == NULL && v-> right == NULL; }
-        friend class LinkedBinaryTree; // give tree access
-        void assignLeft(const Position& p) const { 
-          v->left = p.v; //p = class, .v = defref p to get v (getting that is contained in class p)
-          v->left->par = v; //making v point back to parent
-        } 
-        void assignRight(const Position& p) const { 
-          v->right = p.v; 
-          v->right->par = v; //making v point back to parent
-        }
-        Elem getElem() const { //getting the elem at v
-          Elem element = v->elt;
-          return element;
-        }
-        void deleteRight(const Position& p) const { //p is an object in Position class
-          delete(p.v->right); //p.v gives you private node v (which is an instance to struct node)
-          p.v->right = NULL;
-        }
-      }; typedef std::list<Position> PositionList; // list of positions
 
-  public:
-    LinkedBinaryTree(); // constructor
-    ~LinkedBinaryTree(); // destructor
-    int size() const; // number of nodes
-    bool empty() const; // is tree empty?
-    Position root() const; // get the root
-    PositionList positions() const; // list of nodes
-    void addRoot(); // add root to empty tree
-    void expandExternal(const Position& p) {// expand external node
-      Node* v = p.v; // p's node
-      v->left = new Node; //  add a new left child
-      v->left->par = v; // v is its parent
-      v->right = new Node; //and a new right child
-      v->right->par = v; // v is its parent
-      n += 2; // two more node
+class LinkedBinaryTree {
+ public:
+  struct Node {
+    Elem elt;
+    string name;
+    Node* par;
+    Node* left;
+    Node* right;
+    Node() : elt(), par(NULL), name(""), left(NULL), right(NULL) {}
+    int depth() {
+      if (par == NULL) return 0;
+      return par->depth() + 1;
     }
-    //void destructor(Node* node);
-    void printExpression();
-    void printExpression(const Position& p); //PRINT EXPRESSION
-    double evaluateExpression(double a, double b);
-    double evaluateExpression(double a, double b, const Position& p);
-    double getScore(); 
-    void setScore(double s); //SET THIS TREE'S SCORE 
-    //type function [operator used to compare] (arguements)
-    bool operator < (const LinkedBinaryTree& tree) const {  // QUESTION 5
+  };
+
+  class Position {
+   private:
+    Node* v; //node at position
+
+   public:
+    Position(Node* _v = NULL) : v(_v) {}
+    Elem& operator*() { return v->elt; }
+    Position left() const { return Position(v->left); }
+    void setLeft(Node* n) { v->left = n; }
+    Position right() const { return Position(v->right); }
+    void setRight(Node* n) { v->right = n; }
+    Position parent() const  // get parent
+    {
+      return Position(v->par);
+    }
+    bool isRoot() const  // root of the tree?
+    {
+      return v->par == NULL;
+    }
+    bool isExternal() const  // an external node?
+    {
+      return v->left == NULL && v->right == NULL;
+    }
+    Elem getElem() const {
+        return v->elt;
+    }
+    Node * getNode() {
+        return v;
+    }
+    friend class LinkedBinaryTree;  // give tree access
+  };
+  typedef vector<Position> PositionList;
+
+ public:
+  LinkedBinaryTree() : _root(NULL), score(0), steps(0), generation(0) {}
+
+  // copy constructor
+  LinkedBinaryTree(const LinkedBinaryTree& t) {
+    _root = copyPreOrder(t.root().v);
+    score = t.getScore();
+    steps = t.getSteps();
+    generation = t.getGeneration();
+  }
+
+  // copy assignment operator
+  LinkedBinaryTree& operator=(const LinkedBinaryTree& t) {
+    if (this != &t) {
+      // If tree already contains data, delete it
+      if (_root != NULL) {
+        PositionList pl = positions();
+        for (auto& p : pl) delete p.v;
+      }
+      _root = copyPreOrder(t.root().v);
+      score = t.getScore();
+      steps = t.getSteps();
+      generation = t.getGeneration();
+    }
+    return *this;
+  }
+
+  // destructor
+  ~LinkedBinaryTree() {
+    if (_root != NULL) {
+      PositionList pl = positions();
+      for (auto& p : pl) delete p.v;
+    }
+  }
+
+  int size() const { return size(_root); }
+  int size(Node* root) const;
+  int depth() const;
+  bool empty() const { return size() == 0; };
+  Position root() const { return Position(_root); }
+  PositionList positions() const; //gives you a list of all the nodes
+  void addRoot() { _root = new Node; }
+  void addRoot(Elem e) {
+    _root = new Node;
+    _root->elt = e;
+  }
+  void nameRoot(string name) { _root->name = name; }
+  void addLeftChild(const Position& p, const Node* n);
+  void addLeftChild(const Position& p);
+  void addRightChild(const Position& p, const Node* n);
+  void addRightChild(const Position& p);
+  void printExpression() { printExpression(Position(_root)); }
+  void printExpression(const Position& p);
+  double evaluateExpression(double a, double b) {
+    return evaluateExpression(a, b, Position(_root));
+  };
+  double evaluateExpression(double a, double b, const Position& p);
+  long getGeneration() const { return generation; }
+  void setGeneration(int g) { generation = g; }
+  double getScore() const { return score; }
+  void setScore(double s) { score = s; }
+  double getSteps() const { return steps; }
+  void setSteps(double s) { steps = s; }
+  bool operator < (const LinkedBinaryTree& tree) const {  // QUESTION 5
       //comaparing you are currently in vs. tree passed in
-      return score < tree.score;
+      return (score) < (tree.score);
     }
-    void sizeNodes(int increase) { //counting the number of nodes for each expression
-      n += increase;
-    }
-    // housekeeping functions omitted... destructor, assignment operator, and copy constructor 
-  protected: // local utilities 
-    void preorder(Node* v, PositionList& pl) const; // preorder utilities 
-  private:
-    Node* _root; // pointer to the root
-    int n; // number of nodes
-    double score;
+
+ protected:                                        // local utilities
+  void preorder(Node* v, PositionList& pl) const;  // preorder utility
+  Node* copyPreOrder(const Node* root);
+  double score;     // mean reward over 20 episodes
+  double steps;     // mean steps-per-episode over 20 episodes
+  long generation;
+ private:
+  Node* _root;  // pointer to the root
 };
 
-
-LinkedBinaryTree::LinkedBinaryTree() // constructor
-  : _root(NULL), n(0) { }
-int LinkedBinaryTree::size() const // number of nodes
-  { return n; }
-bool LinkedBinaryTree::empty() const // is tree empty?
-  { return size() == 0; }
-LinkedBinaryTree::Position LinkedBinaryTree::root() const // get the root
-  { return Position(_root); }
-void LinkedBinaryTree::addRoot() // add root to empty tree
-  { _root = new Node; n = 1; }
-
-/* //DESTRUCTOR METHOD
-//commented out b/c the presence of the destructor messes up the sorting of the expressions
-// order of "Exp ((1.2 + 1.2) > 9)"" and "Exp (((4 * 5) - 99.7) > 0.7)" are swapped (when compared to the test case) when destructor is included 
-//destructor does not work with the given main function since it is called automatically before it gets a chance to create the final expression tree
-LinkedBinaryTree::~LinkedBinaryTree() { //DESTRUCTOR
-  if (_root != NULL) {
-    destructor(_root); 
-  }
+// add the tree rooted at node child as this tree's left child
+void LinkedBinaryTree::addLeftChild(const Position& p, const Node* child) {
+  Node* v = p.v;
+  v->left = copyPreOrder(child);  // deep copy child
+  v->left->par = v;
 }
 
-void LinkedBinaryTree::destructor(Node* node) {
-  if (node != NULL) {
-    destructor(node->left);
-    destructor(node->right);
-    //delete node;
-  }
+// add the tree rooted at node child as this tree's right child
+void LinkedBinaryTree::addRightChild(const Position& p, const Node* child) {
+  Node* v = p.v;
+  v->right = copyPreOrder(child);  // deep copy child
+  v->right->par = v;
 }
-*/
 
-//QUESTION 1
-void LinkedBinaryTree::printExpression() {
-  printExpression(root());
+void LinkedBinaryTree::addLeftChild(const Position& p) {
+  Node* v = p.v;
+  v->left = new Node;
+  v->left->par = v;
+}
+
+void LinkedBinaryTree::addRightChild(const Position& p) {
+  Node* v = p.v;
+  v->right = new Node;
+  v->right->par = v;
+}
+
+// return a list of all nodes
+LinkedBinaryTree::PositionList LinkedBinaryTree::positions() const {
+  PositionList pl;
+  preorder(_root, pl);
+  return PositionList(pl);
+}
+
+void LinkedBinaryTree::preorder(Node* v, PositionList& pl) const {
+  pl.push_back(Position(v));
+  if (v->left != NULL) preorder(v->left, pl);
+  if (v->right != NULL) preorder(v->right, pl);
+}
+
+int LinkedBinaryTree::size(Node* v) const {
+  int lsize = 0;
+  int rsize = 0;
+  if (v->left != NULL) lsize = size(v->left);
+  if (v->right != NULL) rsize = size(v->right);
+  return 1 + lsize + rsize;
+}
+
+int LinkedBinaryTree::depth() const {
+  PositionList pl = positions();
+  int depth = 0;
+  for (auto& p : pl) depth = std::max(depth, p.v->depth());
+  return depth;
+}
+
+LinkedBinaryTree::Node* LinkedBinaryTree::copyPreOrder(const Node* root) {
+  if (root == NULL) return NULL;
+  Node* nn = new Node;
+  nn->elt = root->elt;
+  nn->left = copyPreOrder(root->left);
+  if (nn->left != NULL) nn->left->par = nn;
+  nn->right = copyPreOrder(root->right);
+  if (nn->right != NULL) nn->right->par = nn;
+  return nn;
 }
 
 void LinkedBinaryTree::printExpression(const Position& p) { //printing expression
@@ -157,11 +247,6 @@ void LinkedBinaryTree::printExpression(const Position& p) { //printing expressio
     printExpression(p.right()); //print right expression 
     cout << ")";
   }
-}
-
-//QUESTION 2
-double LinkedBinaryTree::evaluateExpression(double a, double b) {
-  return evaluateExpression(a, b, root());
 }
 
 //evaluate expression passing variables a and b of type double and p (position) by reference as arguements
@@ -203,7 +288,6 @@ double LinkedBinaryTree::evaluateExpression(double a, double b, const Position& 
         result = -1; 
       }
     }
-
     return isnan(result) || !isfinite(result) ? 0 : result; //0 if divide by 0 
   }
   else {
@@ -221,18 +305,6 @@ double LinkedBinaryTree::evaluateExpression(double a, double b, const Position& 
 }
 
 
-//QUESTION 3
-double LinkedBinaryTree::getScore() { //gets the score
-  return score; //returning the score obtained
-}
-
-//QUESTION 4
-void LinkedBinaryTree::setScore(double s) { //sets the score to s
-  score = s; //setting the score
-}
-
-
-
 //function reorganizes the data of postfix into a tree data structure (creates the expression tree)
 LinkedBinaryTree createExpressionTree(string postfix) { //function so don't need :: (NOT method)
   std::stack<LinkedBinaryTree> newStack; //creates a new stack of type LinkedBinaryTree so each item in stack is a tree
@@ -240,51 +312,50 @@ LinkedBinaryTree createExpressionTree(string postfix) { //function so don't need
   stringstream ss(postfix); //string must be of type stringstream to be able to tokenize (use tok)
   
   while (getline(ss, tok, ' ')) { //getline(input, output, deliminator)
-    LinkedBinaryTree newTree; //making instance of linked binary tree
+    if (tok == "*" || tok == "+" || tok == "-" || tok == ">" || tok == "/"){ 
+      LinkedBinaryTree newTree; //making instance of linked binary tree
+      newTree.addRoot(); // adding a root
+      *(newTree.root()) = tok; // set root to be elem of token
+
+      //save trees to stack and pop out
+      LinkedBinaryTree right = newStack.top();
+      newStack.pop();
+      LinkedBinaryTree left = newStack.top();
+      newStack.pop();
+
+      newTree.addRightChild(newTree.root(), right.root().getNode()); //add new Right node
+      newTree.addLeftChild(newTree.root(), left.root().getNode()); //add new Left node
+
+      newStack.push(newTree); //push tree onto stack
+    }
 
       //cout << tok << endl;
-    if (tok == "abs") { //checks if tok is "abs"
+    else if (tok == "abs") { //checks if tok is "abs"
+      LinkedBinaryTree newTree;
       newTree.addRoot(); //making the root
       *(newTree.root()) = tok; //setting root to new value
 
-      LinkedBinaryTree num1 = newStack.top(); //finding top of stack
+      LinkedBinaryTree left = newStack.top(); //finding top of stack
       newStack.pop(); //popping first item of stack
 
-      newTree.expandExternal(newTree.root()); // growing branches of tree
-      newTree.sizeNodes(num1.size()-2); //increase size of total nodes in expression by 1
-      newTree.root().assignLeft(num1.root()); //passing in position of root 
-
-      newStack.push(newTree); //pushing tree into stack
+      newTree.addLeftChild(newTree.root(), left.root().getNode()); //add new Left node
+      newStack.push(newTree); //push tree onto stack
     }
-    else if ((tok == "+") || (tok == "-") || (tok == "*") || (tok == "/") ||  (tok == ">") ) {
-      newTree.addRoot(); //making the root
-      *(newTree.root()) = tok; //setting root to new value
-      LinkedBinaryTree num2 = newStack.top(); //finding top of stack
-      newStack.pop(); //popping first item of stack
-      LinkedBinaryTree num1 = newStack.top(); 
-      newStack.pop(); //popping first item of stack
-      //assign L and R of root 
-      newTree.expandExternal(newTree.root()); // growing branches of tree
-      //assigning right and left child branches of root
-      newTree.root().assignRight(num2.root()); //passing in position of root 
-      newTree.root().assignLeft(num1.root());
-      newTree.sizeNodes(num1.size() + num2.size() - 2); //increase size of total nodes in expression by 1
 
-      newStack.push(newTree); //pushing tree into stack
-    }
-    else { //if it is a # (operand)
-      newTree.addRoot(); //making the root
-      *(newTree.root()) = tok; //setting root to new value
-      newStack.push(newTree); //pushing tree into stack
+    else {
+      LinkedBinaryTree newTree;
+      newTree.addRoot();
+      *(newTree.root()) = tok;
+      newStack.push(newTree);
     }
   }
-  LinkedBinaryTree answer = newStack.top(); //assign answer to the top of the stack
-  return answer; 
+    LinkedBinaryTree answer = newStack.top(); //final tree is located on top of stack
+    newStack.pop();
+    return answer; 
 }
 
 
-
-int main() {
+int main(){
 
   // Read postfix expressions into vector 
   //createExpressionTree("22 22 09 29 10");
@@ -294,12 +365,13 @@ int main() {
   while (getline(exp_file, line)) {
     trees.push_back(createExpressionTree(line));
   }
-  /*
+
+
   for (auto& t : trees) {
         t.printExpression(t.root());
         cout << endl;
+  }
 
-*/
 // Read input data into 2D vector 
   vector<vector<double> > inputs; 
   ifstream input_file("input.txt"); 
@@ -330,7 +402,8 @@ int main() {
     cout << "Exp ";
   t.printExpression();
   cout << " Score " << t.getScore() << endl;
-
   }
- //*/
+
+  return 0;
+
 }
