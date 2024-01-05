@@ -1,0 +1,2 @@
+# Genetic Programming: Cart Centering Program
+This program is coded using C++. It utilizes data structures like binary trees and stacks to represent mathematical expressions, which are employed for modelling the motion of the cart (its velocity and position). The objective of the program is to iteratively evolve trees across generations, aiming to generate the most optimal equation for centring the cart.
